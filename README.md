@@ -109,10 +109,9 @@ Reports written to:
 ## Docs
 
 - `docs/architecture.md`
-- `docs/architecture-diagram.mmd`
+- `docs/architecture-diagram.mmd` / `docs/architecture-diagram.png`
 - `docs/problem-solving.md`
 - `docs/demo-script.md`
-- `ASSIGNMENT_PLAN.md`
 
 ## Azure Production Mapping
 
