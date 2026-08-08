@@ -1,5 +1,5 @@
 from app.models import Citation
-from app.rag.citations import extract_citations
+from app.rag.citations import clean_answer_text, extract_citations
 
 
 def test_extract_citations_prefers_answer_ids():
@@ -40,3 +40,8 @@ def test_extract_citations_falls_back_to_top_chunks():
     ]
     citations = extract_citations("Employees receive sick leave.", chunks)
     assert citations[0].chunk_id == "cccccccccccc"
+
+
+def test_clean_answer_text_strips_chunk_ids():
+    text = "Employees get 10 sick days [aa0de3298232]."
+    assert clean_answer_text(text) == "Employees get 10 sick days."

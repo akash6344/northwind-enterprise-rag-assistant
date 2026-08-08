@@ -17,23 +17,39 @@ def is_comparison_query(question: str) -> bool:
 
 
 def build_subqueries(question: str) -> list[str]:
-    """Decompose comparison / multi-entity questions into retrieval subqueries."""
-    if not is_comparison_query(question):
-        return [question]
-
-    years = YEAR_RE.findall(question)
+    """Expand overview/comparison questions into stronger retrieval subqueries."""
     subqueries = [question]
-    if len(years) >= 2:
-        base = YEAR_RE.sub("", question)
-        base = re.sub(r"\b(from|to|between|and|did|change|changed)\b", " ", base, flags=re.I)
-        base = re.sub(r"\s+", " ", base).strip(" ?")
-        for year in years:
-            subqueries.append(f"{base} {year}".strip())
-    if "carryover" in question.lower() and "pto" in question.lower() and "sick" in question.lower():
-        subqueries.extend(["PTO carryover policy", "sick leave carryover policy"])
-    if "prepaid" in question.lower() and "discount" in question.lower():
-        subqueries.extend(["annual prepaid discount", "3-year prepaid discount"])
-    # Preserve order, drop empties/dupes
+    lower = question.lower()
+
+    if is_comparison_query(question):
+        years = YEAR_RE.findall(question)
+        if len(years) >= 2:
+            base = YEAR_RE.sub("", question)
+            base = re.sub(r"\b(from|to|between|and|did|change|changed)\b", " ", base, flags=re.I)
+            base = re.sub(r"\s+", " ", base).strip(" ?")
+            for year in years:
+                subqueries.append(f"{base} {year}".strip())
+        if "carryover" in lower and "pto" in lower and "sick" in lower:
+            subqueries.extend(["PTO carryover policy", "sick leave carryover policy"])
+        if "prepaid" in lower and "discount" in lower:
+            subqueries.extend(["annual prepaid discount", "3-year prepaid discount"])
+
+    # Broad topic questions need section-level expansion.
+    if "benefit" in lower:
+        subqueries.extend(
+            [
+                "Employee Benefits Guide overview",
+                "Health Insurance medical dental vision plan tiers",
+                "Retirement Savings 401(k) match",
+                "Life Disability Insurance wellness tuition reimbursement",
+                "Additional Perks commuter stipend ESPP learning stipend",
+            ]
+        )
+    if re.search(r"\bleave\b|\bpto\b|time off|sick leave", lower) and "benefit" not in lower:
+        subqueries.extend(["Leave Time Off Policy PTO sick leave parental"])
+    if "pricing" in lower or "enterprise tier" in lower or "professional tier" in lower:
+        subqueries.extend(["Subscription Tiers price seat month", "Pricing 2026 current"])
+
     seen: set[str] = set()
     out: list[str] = []
     for item in subqueries:
@@ -53,35 +69,72 @@ def _lexical_overlap(query: str, content: str) -> float:
 
 
 def rerank_chunks(query: str, chunks: list[dict], final_k: int = 5) -> list[dict]:
-    """Local lexical + score rerank used as the demo stand-in for semantic ranker."""
+    """Local lexical + metadata rerank used as the demo stand-in for semantic ranker."""
     ranked = []
+    lower_q = query.lower()
     for chunk in chunks:
-        overlap = _lexical_overlap(query, chunk.get("content", ""))
+        content = chunk.get("content", "")
+        section = str(chunk.get("section") or "")
+        source = str(chunk.get("source_file") or "")
+        title = str(chunk.get("title") or "")
+        meta = f"{source} {title} {section}"
+        overlap = _lexical_overlap(query, content)
+        meta_overlap = _lexical_overlap(query, meta)
         current_boost = 0.05 if chunk.get("is_current") else 0.0
-        combined = 0.62 * chunk.get("score", 0.0) + 0.33 * overlap + current_boost
-        ranked.append({**chunk, "rerank_score": round(combined, 4), "overlap": round(overlap, 4)})
+        filename_boost = 0.12 if any(term in source.lower() for term in lower_q.split() if len(term) > 4) else 0.0
+
+        penalty = 0.0
+        section_l = section.lower()
+        if section_l in {"9. contact", "contact"} or "contact" in section_l:
+            penalty += 0.12
+        if len(content.split()) < 20:
+            penalty += 0.1
+        # Leave-without-pay is a weak match for a general "benefits" overview.
+        if "benefit" in lower_q and "leave" in source.lower() and "without pay" in section_l:
+            penalty += 0.18
+
+        combined = (
+            0.48 * chunk.get("score", 0.0)
+            + 0.27 * overlap
+            + 0.18 * meta_overlap
+            + current_boost
+            + filename_boost
+            - penalty
+        )
+        ranked.append(
+            {
+                **chunk,
+                "rerank_score": round(combined, 4),
+                "overlap": round(overlap, 4),
+            }
+        )
     ranked.sort(key=lambda item: item["rerank_score"], reverse=True)
     return ranked[:final_k]
 
 
-def pack_context(chunks: list[dict], final_k: int = 5) -> list[dict]:
-    """Prefer diverse documents/sections over near-duplicate adjacent chunks."""
+def pack_context(chunks: list[dict], final_k: int = 5, query: str = "") -> list[dict]:
+    """Prefer diverse high-value sections; allow denser packing for single-topic docs."""
     selected: list[dict] = []
     seen_docs: dict[str, int] = defaultdict(int)
     seen_prefixes: set[str] = set()
+    lower_q = query.lower()
+
     for chunk in chunks:
         doc = chunk.get("document_id") or chunk.get("source_file") or ""
         prefix = chunk.get("content", "")[:120].lower()
         if prefix in seen_prefixes:
             continue
-        if seen_docs[doc] >= 2 and len(selected) < final_k:
-            # allow a second pass later if we still have room
+        max_per_doc = 2
+        if "benefit" in lower_q and "benefit" in str(doc).lower():
+            max_per_doc = final_k
+        if seen_docs[doc] >= max_per_doc:
             continue
         selected.append(chunk)
         seen_docs[doc] += 1
         seen_prefixes.add(prefix)
         if len(selected) >= final_k:
             break
+
     if len(selected) < final_k:
         for chunk in chunks:
             if chunk in selected:
@@ -110,7 +163,7 @@ def retrieve(
             access_groups=access_groups,
         )
 
-    candidate_k = max(top_k * 2, 10)
+    candidate_k = max(top_k * 2, 12)
     subqueries = build_subqueries(query)
     merged: dict[str, dict] = {}
     for subquery in subqueries:
@@ -126,5 +179,5 @@ def retrieve(
             if not existing or hit["score"] > existing["score"]:
                 merged[hit["chunk_id"]] = hit
     candidates = sorted(merged.values(), key=lambda item: item["score"], reverse=True)
-    reranked = rerank_chunks(query, candidates, final_k=max(top_k, 8))
-    return pack_context(reranked, final_k=top_k)
+    reranked = rerank_chunks(query, candidates, final_k=max(top_k + 4, 10))
+    return pack_context(reranked, final_k=top_k, query=query)

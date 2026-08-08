@@ -1,55 +1,16 @@
 flowchart TB
-    subgraph Users["User and authentication"]
-        user[Enterprise User]
-        entra[Microsoft Entra ID]
+    user[User] --> entra[Entra ID] --> app[FastAPI]
+
+    app --> services
+
+    subgraph services [Azure services used by the app]
+        direction LR
+        search[Azure AI Search]
+        aoai[Azure OpenAI]
+        insights[App Insights]
+        kv[Key Vault]
     end
 
-    subgraph App["Application layer"]
-        api[FastAPI on App Service / Container Apps]
-        ui[Optional Streamlit / HTML chat]
-    end
+    blob[Blob Storage] --> event[Event Grid] --> worker[Ingestion Worker] --> search
 
-    subgraph RetrievalGen["Retrieval and generation"]
-        rewrite[Query rewrite / ambiguity checks]
-        search[Azure AI Search hybrid + vector + semantic ranker]
-        aoaiChat[Azure OpenAI Chat]
-        citations[Grounded answer + citations]
-    end
-
-    subgraph Ingestion["Ingestion path"]
-        blob[Azure Blob Storage]
-        event[Event Grid]
-        worker[Azure Functions ingestion worker]
-        docintel[Document Intelligence optional]
-        aoaiEmbed[Azure OpenAI Embeddings]
-    end
-
-    subgraph Observability["Observability and secrets"]
-        insights[Application Insights]
-        kv[Azure Key Vault]
-        mi[Managed Identity]
-    end
-
-    subgraph Demo["Cost-controlled demo mode"]
-        localindex[Local BM25 + vector index]
-        mistral[Mistral API]
-    end
-
-    user --> entra --> ui --> api
-    api --> rewrite --> search --> aoaiChat --> citations
-    api --> insights
-    api --> kv
-    mi --> search
-    mi --> aoaiChat
-    mi --> blob
-
-    blob --> event --> worker
-    worker --> docintel
-    worker --> aoaiEmbed --> search
-    worker --> insights
-
-    api -. demo .-> localindex
-    api -. demo .-> mistral
-
-    search --- acl[Department ACL / is_current filters]
-    api --- private[Private endpoints + network isolation]
+    security[Security applied across the system: ACL filters in Search · Managed Identity · Private endpoints]

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.models import ChatRequest, ChatResponse
-from app.rag.citations import extract_citations
+from app.rag.citations import clean_answer_text, extract_citations
 from app.rag.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.rag.query_rewrite import is_ambiguous, rewrite_query
 from app.rag.retrieval import retrieve
@@ -84,7 +84,7 @@ def answer_question(request: ChatRequest, request_id: str | None = None) -> Chat
             confidence=confidence,
             insufficient_evidence=True,
             latency_ms=latency_ms,
-            retrieved_chunks=_public_chunks(chunks),
+            retrieved_chunks=[],
             request_id=request_id,
         )
 
@@ -100,6 +100,7 @@ def answer_question(request: ChatRequest, request_id: str | None = None) -> Chat
             {"role": "user", "content": build_user_prompt(request.question, chunks)},
         ]
     )
+    answer = clean_answer_text(answer)
     generate_ms = int((time.perf_counter() - gen_started) * 1000)
     latency_ms = int((time.perf_counter() - started) * 1000)
     citations = extract_citations(answer, chunks)

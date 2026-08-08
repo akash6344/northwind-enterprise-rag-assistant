@@ -1,48 +1,23 @@
 # Production Architecture
 
-The working demo runs with Mistral and a local hybrid index to control cost. The production design maps the same pipeline onto Azure services without changing the RAG control flow.
+Cost-controlled demo: local hybrid index + Mistral.  
+Production deployment maps the same RAG design onto Azure.
 
-## Service mapping
+## Core services
 
-| Demo component | Production Azure component |
-| --- | --- |
-| `KnowledgeBase/` files | Azure Blob Storage |
-| `python -m ingestion.ingest` | Event Grid + Azure Functions / Container Apps ingestion worker |
-| Local hash embeddings / optional Mistral embeddings | Azure OpenAI embeddings |
-| `LocalHybridIndex` BM25 + vector | Azure AI Search hybrid vector + keyword retrieval |
-| Local lexical rerank | Azure AI Search semantic ranker |
-| Mistral chat | Azure OpenAI chat deployment |
-| FastAPI + Streamlit | App Service or Container Apps |
-| Sidebar access groups | Microsoft Entra ID claims mapped to search filters |
-| `.env` secrets | Key Vault + Managed Identity |
-| Structured JSON logs | Application Insights traces/metrics |
+- **Blob Storage** — documents  
+- **Event Grid + ingestion worker** — parse, chunk, embed, index  
+- **Azure AI Search** — hybrid/vector retrieval + metadata ACL filters  
+- **Azure OpenAI** — embeddings + answer generation  
+- **FastAPI** on App Service / Container Apps  
+- **Entra ID** — authentication  
+- **Key Vault + Managed Identity** — secrets  
+- **Application Insights** — latency, errors, token usage  
 
-## Ingestion path
+## Why this design
 
-1. Documents land in Blob Storage under department prefixes.
-2. Event Grid triggers the ingestion worker.
-3. Worker parses PDF/DOCX/XLSX, extracts section-aware chunks, and stores metadata (`department`, `version`, `effective_date`, `is_current`, `access_groups`).
-4. Worker embeds content with Azure OpenAI and upserts into Azure AI Search using `ingestion/index_schema.py`.
-5. Optional Document Intelligence handles scanned/table-heavy PDFs.
+- Azure AI Search supports hybrid search, security filters, and semantic ranking.  
+- ACLs are enforced in search filters, not only in prompts.  
+- Same pipeline scales from ~10k docs (single index) to millions (partition by tenant/domain, incremental ingestion, stricter filters).  
 
-## Query path
-
-1. User authenticates with Entra ID.
-2. API rewrites follow-ups, classifies ambiguity, and builds metadata filters from claims.
-3. Azure AI Search runs hybrid retrieval with security filters applied before ranking.
-4. Semantic ranker selects the final evidence set.
-5. Azure OpenAI generates a grounded answer with citations.
-6. Application Insights records request ID, retrieve/generate latency, token usage, and citation IDs.
-
-## Security and isolation
-
-- ACL metadata is attached at ingestion time.
-- Access filters run in search, never only in the prompt.
-- Private endpoints and Managed Identity protect OpenAI, Search, and storage.
-- Logs keep citation IDs and metadata; avoid shipping full sensitive context when unnecessary.
-
-## Scale and cost
-
-- ~10k documents: one search index, scheduled/event-driven ingestion, hybrid retrieval.
-- Millions of documents: partition by tenant/domain, incremental indexing, stricter filters, offline evaluation, and lifecycle management.
-- Cost controls: rerank/pack context before generation, smaller models for rewrite/classification, batch embeddings, cache stable answers where policy allows.
+See `architecture-diagram.mmd` / `architecture-diagram.png`.

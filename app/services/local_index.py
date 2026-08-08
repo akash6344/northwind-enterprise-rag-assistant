@@ -104,10 +104,23 @@ class LocalHybridIndex:
             vector_score = self._cosine(query_embedding, chunk["embedding"])
             bm25_score = self._bm25(query_tokens, idx)
             current_boost = 0.08 if improved and chunk.get("is_current") else 0.0
+            meta_text = " ".join(
+                str(chunk.get(field) or "")
+                for field in ("source_file", "title", "section", "document_id")
+            ).lower()
+            meta_hits = sum(1 for token in query_tokens if len(token) > 3 and token in meta_text)
+            meta_boost = min(0.15, 0.04 * meta_hits) if improved else 0.0
             if improved:
-                score = 0.58 * vector_score + 0.34 * min(1.0, bm25_score / 8.0) + current_boost
+                score = 0.55 * vector_score + 0.32 * min(1.0, bm25_score / 8.0) + current_boost + meta_boost
             else:
                 score = vector_score
-            scored.append({**chunk, "score": round(float(score), 4), "bm25_score": round(float(bm25_score), 4), "vector_score": round(float(vector_score), 4)})
+            scored.append(
+                {
+                    **chunk,
+                    "score": round(float(score), 4),
+                    "bm25_score": round(float(bm25_score), 4),
+                    "vector_score": round(float(vector_score), 4),
+                }
+            )
         scored.sort(key=lambda item: item["score"], reverse=True)
         return scored[:top_k]

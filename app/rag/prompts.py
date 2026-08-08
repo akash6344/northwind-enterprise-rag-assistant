@@ -4,8 +4,9 @@ Answer only from the provided context. If the context does not contain enough ev
 
 Rules:
 - Be concise and specific.
-- Include citations using bracketed chunk ids like [abc123].
-- Do not cite a chunk unless it directly supports the claim.
+- Write a clean natural-language answer.
+- Do NOT include chunk IDs, bracket codes, or raw metadata in the answer.
+- Sources are shown separately by the application.
 - If a question is ambiguous, ask a clarification question instead of guessing.
 - Prefer current/effective documents when versions conflict.
 """
@@ -13,19 +14,16 @@ Rules:
 
 def build_user_prompt(question: str, chunks: list[dict]) -> str:
     context_blocks = []
-    for chunk in chunks:
+    for idx, chunk in enumerate(chunks, start=1):
+        source_name = str(chunk["source_file"]).split("/")[-1]
         context_blocks.append(
             "\n".join(
                 [
-                    f"Chunk ID: {chunk['chunk_id']}",
-                    f"Source: {chunk['source_file']}",
+                    f"Source {idx}: {source_name}",
                     f"Department: {chunk.get('department')}",
                     f"Section: {chunk.get('section')}",
                     f"Page: {chunk.get('page')}",
-                    f"Version: {chunk.get('version')}",
-                    f"Effective Date: {chunk.get('effective_date')}",
-                    f"Current: {chunk.get('is_current')}",
-                    "Content:",
+                    "Paragraph:",
                     chunk["content"],
                 ]
             )
@@ -36,4 +34,4 @@ def build_user_prompt(question: str, chunks: list[dict]) -> str:
 Retrieved context:
 {chr(10).join(context_blocks)}
 
-Answer with citations."""
+Write a clean answer with no chunk IDs or bracket codes."""

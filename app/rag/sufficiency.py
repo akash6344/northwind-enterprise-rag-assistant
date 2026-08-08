@@ -33,6 +33,28 @@ STOPWORDS = {
     "customers",
     "company",
     "policy",
+    "should",
+    "needed",
+    "current",
+    "above",
+    "using",
+    "please",
+    "would",
+    "could",
+    "their",
+    "there",
+    "have",
+    "has",
+    "been",
+    "into",
+    "over",
+    "under",
+    "after",
+    "before",
+    "between",
+    "receive",
+    "employees",
+    "employee",
 }
 
 
@@ -43,6 +65,22 @@ def _content_terms(question: str) -> set[str]:
         if len(token) > 2 and token.lower() not in STOPWORDS
     }
     return terms
+
+
+def _normalize_term(term: str) -> str:
+    """Lightweight singularization so 'leaves' matches 'leave' in policy text."""
+    if len(term) > 4 and term.endswith("ies"):
+        return term[:-3] + "y"
+    if len(term) > 3 and term.endswith("ses"):
+        return term[:-2]
+    if len(term) > 3 and term.endswith("s") and not term.endswith("ss"):
+        return term[:-1]
+    return term
+
+
+def _term_in_content(term: str, content: str) -> bool:
+    variants = {term, _normalize_term(term)}
+    return any(variant in content for variant in variants)
 
 
 def evidence_confidence(chunks: list[dict]) -> float:
@@ -66,12 +104,15 @@ def has_sufficient_evidence(question: str, chunks: list[dict]) -> bool:
 
     top_score = chunks[0].get("rerank_score", chunks[0].get("score", 0.0))
     content = " ".join(chunk.get("content", "").lower() for chunk in chunks[:4])
-    overlap = sum(1 for term in question_terms if term in content)
+    overlap = sum(1 for term in question_terms if _term_in_content(term, content))
     required = max(1, min(3, (len(question_terms) + 1) // 2))
 
-    # Long distinctive terms must appear; avoids answering "refund" from unrelated pricing chunks.
+    # Distinctive long terms: require all when few; majority when many.
     long_terms = {term for term in question_terms if len(term) >= 6}
-    if long_terms and not all(term in content for term in long_terms):
-        return False
+    if long_terms:
+        present = sum(1 for term in long_terms if _term_in_content(term, content))
+        needed = len(long_terms) if len(long_terms) <= 2 else max(1, (len(long_terms) + 1) // 2)
+        if present < needed:
+            return False
 
-    return top_score >= 0.22 and overlap >= required
+    return top_score >= 0.20 and overlap >= required
