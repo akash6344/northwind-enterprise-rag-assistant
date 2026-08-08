@@ -1,0 +1,150 @@
+- id: sales_current_enterprise_price
+  question: What is the current Enterprise tier price?
+  expected_document: KnowledgeBase/Sales/Pricing2026.pdf
+  expected_section: Subscription Tiers
+  type: version_conflict
+  difficulty: medium
+- id: professional_api_change
+  question: Did Professional API limits change from 2025 to 2026?
+  expected_document: KnowledgeBase/Sales/Pricing2026.pdf
+  expected_section: What's Changed for 2026
+  type: multi_document
+  difficulty: hard
+- id: pricing_after_jan_2026
+  question: Which pricing document should be used for contracts signed after January 1, 2026?
+  expected_document: KnowledgeBase/Sales/Pricing2026.pdf
+  expected_section: null
+  type: version_conflict
+  difficulty: medium
+- id: professional_2026_price
+  question: What is the monthly price for the Professional tier in 2026?
+  expected_document: KnowledgeBase/Sales/Pricing2026.pdf
+  expected_section: Subscription Tiers
+  type: straightforward
+  difficulty: easy
+- id: prepaid_discount_compare
+  question: Compare annual prepaid and 3-year prepaid discounts.
+  expected_document: KnowledgeBase/Sales/Discounts.xlsx
+  expected_section: null
+  type: multi_document
+  difficulty: hard
+- id: sick_leave_days
+  question: How many paid sick leave days do employees receive?
+  expected_document: KnowledgeBase/HR/LeavePolicy.pdf
+  expected_section: Sick Leave
+  type: straightforward
+  difficulty: easy
+- id: pto_sick_carryover
+  question: Compare PTO carryover and sick leave carryover.
+  expected_document: KnowledgeBase/HR/LeavePolicy.pdf
+  expected_section: null
+  type: multi_document
+  difficulty: hard
+- id: retirement_match
+  question: What is the employee 401(k) match?
+  expected_document: KnowledgeBase/HR/Benefits.pdf
+  expected_section: Retirement Savings
+  type: straightforward
+  difficulty: easy
+  access_groups:
+    - HR
+- id: vpn_portal
+  question: What VPN portal address should employees use?
+  expected_document: KnowledgeBase/IT/VPNGuide.pdf
+  expected_section: Connecting
+  type: straightforward
+  difficulty: easy
+- id: password_length
+  question: What is the minimum password length?
+  expected_document: KnowledgeBase/IT/PasswordPolicy.docx
+  expected_section: null
+  type: straightforward
+  difficulty: easy
+- id: expense_meal_approval
+  question: What approval is needed for a client meal above the standard expense limit?
+  expected_document: KnowledgeBase/Finance/ExpensePolicy.pdf
+  expected_section: null
+  type: multi_document
+  difficulty: hard
+- id: travel_policy_effective
+  question: What is the effective date of the business travel policy?
+  expected_document: KnowledgeBase/Finance/TravelPolicy.docx
+  expected_section: null
+  type: straightforward
+  difficulty: easy
+- id: nda_retention
+  question: How long should signed NDAs be retained?
+  expected_document: KnowledgeBase/Legal/NDA.docx
+  expected_section: null
+  type: straightforward
+  difficulty: medium
+- id: vendor_renewal
+  question: What are the vendor contract renewal terms?
+  expected_document: KnowledgeBase/Legal/VendorContract.pdf
+  expected_section: null
+  type: straightforward
+  difficulty: medium
+- id: ambiguous_limit
+  question: What is the limit?
+  expected_document: null
+  expected_section: null
+  type: ambiguous
+  difficulty: medium
+  expect_clarification: true
+- id: ambiguous_approval
+  question: Who approves exceptions?
+  expected_document: null
+  expected_section: null
+  type: ambiguous
+  difficulty: medium
+  expect_clarification: true
+- id: no_answer_refund
+  question: What is the refund policy for Standard customers?
+  expected_document: null
+  expected_section: null
+  type: no_answer
+  difficulty: medium
+  expect_refusal: true
+- id: no_answer_canada_leave
+  question: What is the company's maternity leave policy in Canada?
+  expected_document: null
+  expected_section: null
+  type: no_answer
+  difficulty: medium
+  expect_refusal: true
+- id: no_answer_ceo_travel
+  question: What is the CEO's travel budget?
+  expected_document: null
+  expected_section: null
+  type: no_answer
+  difficulty: medium
+  expect_refusal: true
+- id: access_control_hr
+  question: What is the employee 401(k) match?
+  expected_document: null
+  expected_section: null
+  type: access_control
+  difficulty: hard
+  expect_refusal: true
+  access_groups:
+    - Engineering
+- id: access_control_legal
+  question: How long should signed NDAs be retained?
+  expected_document: null
+  expected_section: null
+  type: access_control
+  difficulty: hard
+  expect_refusal: true
+  access_groups:
+    - Sales
+- id: conversational_followup
+  question: What about Enterprise Plus?
+  expected_document: KnowledgeBase/Sales/Pricing2026.pdf
+  expected_section: Subscription Tiers
+  type: conversational
+  difficulty: hard
+  conversation_history:
+    - role: user
+      content: What is the Enterprise tier price?
+    - role: assistant
+      content: The current Enterprise tier is listed in Pricing2026.
